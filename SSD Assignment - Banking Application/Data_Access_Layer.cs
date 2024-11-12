@@ -5,6 +5,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Microsoft.Data.Sqlite;
+using SSD_Assignment___Banking_Application;
 
 namespace Banking_Application
 {
@@ -119,7 +120,7 @@ namespace Banking_Application
             }
         }
 
-        public String addBankAccount(Bank_Account ba) 
+        public String addBankAccount(Bank_Account ba, string tellerName, string deviceIdentifier) 
         {
 
             if (ba.GetType() == typeof(Current_Account))
@@ -161,11 +162,13 @@ namespace Banking_Application
 
             }
 
+            //Call Log
+            Logger.LogTransaction(tellerName, ba.accountNo, ba.name, "Account Creation", deviceIdentifier);
             return ba.accountNo;
 
         }
 
-        public Bank_Account findBankAccountByAccNo(String accNo) 
+        public Bank_Account findBankAccountByAccNo(String accNo, string tellerName, string deviceIdentifier) 
         { 
         
             foreach(Bank_Account ba in accounts)
@@ -173,6 +176,8 @@ namespace Banking_Application
 
                 if (ba.accountNo.Equals(accNo))
                 {
+                    //Log the balance qeury or account information retrieval
+                    Logger.LogTransaction(tellerName, accNo, ba.name, "Balance Query", deviceIdentifier);
                     return ba;
                 }
 
@@ -181,7 +186,7 @@ namespace Banking_Application
             return null; 
         }
 
-        public bool closeBankAccount(String accNo) 
+        public bool closeBankAccount(String accNo, string tellerName, string deviceIdentifier) 
         {
 
             Bank_Account toRemove = null;
@@ -212,12 +217,14 @@ namespace Banking_Application
 
                 }
 
+                //Call Log
+                Logger.LogTransaction(tellerName, accNo, toRemove.name, "Account Closure", deviceIdentifier);
                 return true;
             }
 
         }
 
-        public bool lodge(String accNo, double amountToLodge)
+        public bool lodge(String accNo, double amountToLodge, string tellerName, string deviceIdentifier)
         {
 
             Bank_Account toLodgeTo = null;
@@ -248,12 +255,15 @@ namespace Banking_Application
 
                 }
 
+                string reason = amountToLodge > 10000 ? "Got paid extra at work" : "";
+                Logger.LogTransaction(tellerName, accNo, toLodgeTo.name, "Lodgement", deviceIdentifier, reason);
+
                 return true;
             }
 
         }
 
-        public bool withdraw(String accNo, double amountToWithdraw)
+        public bool withdraw(String accNo, double amountToWithdraw, string tellerName, string deviceIdentifier)
         {
 
             Bank_Account toWithdrawFrom = null;
@@ -285,6 +295,9 @@ namespace Banking_Application
 
                 }
 
+                //Call Log
+                string reason = amountToWithdraw > 10000 ? "Taking money out for plumbing" : "";
+                Logger.LogTransaction(tellerName, accNo, toWithdrawFrom.name, "Withdrawal", deviceIdentifier, reason);
                 return true;
             }
 
