@@ -2,6 +2,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
 using Microsoft.Data.Sqlite;
@@ -16,7 +17,7 @@ namespace Banking_Application
         public static String databaseName = "Banking Database.db";
         private static Data_Access_Layer instance = new Data_Access_Layer();
 
-        private Data_Access_Layer()//Singleton Design Pattern (For Concurrency Control) - Use getInstance() Method Instead.
+        private Data_Access_Layer()
         {
             accounts = new List<Bank_Account>();
         }
@@ -120,53 +121,62 @@ namespace Banking_Application
             }
         }
 
-        public String addBankAccount(Bank_Account ba, string tellerName, string deviceIdentifier) 
+        public String addBankAccount(Bank_Account ba, string tellerName, string deviceIdentifier)
         {
-
-            if (ba.GetType() == typeof(Current_Account))
-                ba = (Current_Account)ba;
-            else
-                ba = (Savings_Account)ba;
-
-            accounts.Add(ba);
+            // Encrypt PII fields
+            string encryptedName = Convert.ToBase64String(EncryptionMaker.Encrypt(ba.name, CipherMode.CFB));
+            string encryptedAddressLine1 = Convert.ToBase64String(EncryptionMaker.Encrypt(ba.address_line_1, CipherMode.CFB));
+            string encryptedAddressLine2 = Convert.ToBase64String(EncryptionMaker.Encrypt(ba.address_line_2, CipherMode.CFB));
+            string encryptedAddressLine3 = Convert.ToBase64String(EncryptionMaker.Encrypt(ba.address_line_3, CipherMode.CFB));
+            string encryptedTown = Convert.ToBase64String(EncryptionMaker.Encrypt(ba.town, CipherMode.CFB));
+            string encryptedAccountNo = Convert.ToBase64String(EncryptionMaker.Encrypt(ba.accountNo, CipherMode.CFB));
 
             using (var connection = getDatabaseConnection())
             {
                 connection.Open();
                 var command = connection.CreateCommand();
+
                 command.CommandText =
                 @"
-                    INSERT INTO Bank_Accounts VALUES(" +
-                    "'" + ba.accountNo + "', " +
-                    "'" + ba.name + "', " +
-                    "'" + ba.address_line_1 + "', " +
-                    "'" + ba.address_line_2 + "', " +
-                    "'" + ba.address_line_3 + "', " +
-                    "'" + ba.town + "', " +
-                    ba.balance + ", " +
-                    (ba.GetType() == typeof(Current_Account) ? 1 : 2) + ", ";
+            INSERT INTO Bank_Accounts 
+            (accountNo, name, address_line_1, address_line_2, address_line_3, town, balance, accountType, overdraftAmount, interestRate)
+            VALUES (@accountNo, @name, @addressLine1, @addressLine2, @addressLine3, @town, @balance, @accountType, @overdraftAmount, @interestRate)
+        ";
+
+                // Add parameters to prevent SQL injection
+                command.Parameters.AddWithValue("@accountNo", encryptedAccountNo);
+                command.Parameters.AddWithValue("@name", encryptedName);
+                command.Parameters.AddWithValue("@addressLine1", encryptedAddressLine1);
+                command.Parameters.AddWithValue("@addressLine2", encryptedAddressLine2);
+                command.Parameters.AddWithValue("@addressLine3", encryptedAddressLine3);
+                command.Parameters.AddWithValue("@town", encryptedTown);
+                command.Parameters.AddWithValue("@balance", ba.balance);
+                command.Parameters.AddWithValue("@accountType", ba.GetType() == typeof(Current_Account) ? 1 : 2);
 
                 if (ba.GetType() == typeof(Current_Account))
                 {
+                    // Current Account specific field
                     Current_Account ca = (Current_Account)ba;
-                    command.CommandText += ca.overdraftAmount + ", NULL)";
+                    command.Parameters.AddWithValue("@overdraftAmount", ca.overdraftAmount);
+                    command.Parameters.AddWithValue("@interestRate", DBNull.Value);
                 }
-
                 else
                 {
+                    // Savings Account specific field
                     Savings_Account sa = (Savings_Account)ba;
-                    command.CommandText += "NULL," + sa.interestRate + ")";
+                    command.Parameters.AddWithValue("@overdraftAmount", DBNull.Value);
+                    command.Parameters.AddWithValue("@interestRate", sa.interestRate);
                 }
 
                 command.ExecuteNonQuery();
-
             }
 
-            //Call Log
+            // Call Logger to log transaction
             Logger.LogTransaction(tellerName, ba.accountNo, ba.name, "Account Creation", deviceIdentifier);
-            return ba.accountNo;
 
+            return ba.accountNo;
         }
+
 
         public Bank_Account findBankAccountByAccNo(String accNo, string tellerName, string deviceIdentifier) 
         { 

@@ -1,4 +1,5 @@
-﻿using System;
+﻿using SSD_Assignment___Banking_Application;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -8,7 +9,21 @@ namespace Banking_Application
     {
         public static void Main(string[] args)
         {
-            
+            Console.WriteLine("Enter Teller Name:");
+            string tellerName = Console.ReadLine();
+            string deviceIdentifier = DeviceIdentifierHelper.GetDeviceIdentifier();
+
+
+            //Test 
+            //Console.WriteLine("Run encryption tests? (y/n): ");
+            //string input = Console.ReadLine();
+            //if (input?.ToLower() == "y")
+            //{
+            //    EncriptionTest.RunEncryptionTests();
+            //}
+
+
+
             Data_Access_Layer dal = Data_Access_Layer.getInstance();
             dal.loadBankAccounts();
             bool running = true;
@@ -189,7 +204,7 @@ namespace Banking_Application
                             ba = new Savings_Account(name, addressLine1, addressLine2, addressLine3, town, balance, interestRate);
                         }
 
-                        String accNo = dal.addBankAccount(ba);
+                        String accNo = dal.addBankAccount(ba, tellerName, deviceIdentifier);
 
                         Console.WriteLine("New Account Number Is: " + accNo);
 
@@ -198,7 +213,7 @@ namespace Banking_Application
                         Console.WriteLine("Enter Account Number: ");
                         accNo = Console.ReadLine();
 
-                        ba = dal.findBankAccountByAccNo(accNo);
+                        ba = dal.findBankAccountByAccNo(accNo, tellerName, deviceIdentifier);
 
                         if (ba is null)
                         {
@@ -219,7 +234,7 @@ namespace Banking_Application
                                 switch (ans)
                                 {
                                     case "Y":
-                                    case "y": dal.closeBankAccount(accNo);
+                                    case "y": dal.closeBankAccount(accNo, tellerName, deviceIdentifier);
                                         break;
                                     case "N":
                                     case "n":
@@ -236,7 +251,7 @@ namespace Banking_Application
                         Console.WriteLine("Enter Account Number: ");
                         accNo = Console.ReadLine();
 
-                        ba = dal.findBankAccountByAccNo(accNo);
+                        ba = dal.findBankAccountByAccNo(accNo, tellerName, deviceIdentifier);
 
                         if(ba is null) 
                         {
@@ -252,7 +267,7 @@ namespace Banking_Application
                         Console.WriteLine("Enter Account Number: ");
                         accNo = Console.ReadLine();
 
-                        ba = dal.findBankAccountByAccNo(accNo);
+                        ba = dal.findBankAccountByAccNo(accNo, tellerName, deviceIdentifier);
 
                         if (ba is null)
                         {
@@ -284,14 +299,14 @@ namespace Banking_Application
 
                             } while (amountToLodge < 0);
 
-                            dal.lodge(accNo, amountToLodge);
+                            dal.lodge(accNo, amountToLodge, tellerName, deviceIdentifier);
                         }
                         break;
                     case "5": //Withdraw
                         Console.WriteLine("Enter Account Number: ");
                         accNo = Console.ReadLine();
 
-                        ba = dal.findBankAccountByAccNo(accNo);
+                        ba = dal.findBankAccountByAccNo(accNo, tellerName, deviceIdentifier);
 
                         if (ba is null)
                         {
@@ -323,7 +338,7 @@ namespace Banking_Application
 
                             } while (amountToWithdraw < 0);
 
-                            bool withdrawalOK = dal.withdraw(accNo, amountToWithdraw);
+                            bool withdrawalOK = dal.withdraw(accNo, amountToWithdraw, tellerName, deviceIdentifier);
 
                             if(withdrawalOK == false)
                             {
