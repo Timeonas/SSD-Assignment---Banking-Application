@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Security.Cryptography;
 
 namespace Banking_Application
 {
@@ -14,7 +15,7 @@ namespace Banking_Application
             string deviceIdentifier = DeviceIdentifierHelper.GetDeviceIdentifier();
 
 
-            //Test 
+            //Test if it encryptes
             //Console.WriteLine("Run encryption tests? (y/n): ");
             //string input = Console.ReadLine();
             //if (input?.ToLower() == "y")
@@ -22,6 +23,23 @@ namespace Banking_Application
             //    EncriptionTest.RunEncryptionTests();
             //}
 
+            //Test To decrpyt
+            //string encryptedBase64 = "nvE1Kj1114m3Xep/sg/qLY1V9ZyyLwqz0vwfEIcU/Ol50W8yf9gWLSvlyI8H8U/kQRVpsKY="; // Replace with your actual encrypted Base64 string
+
+            //try
+            //{
+            //    // Convert the Base64-encoded string back to a byte array
+            //    byte[] encryptedData = Convert.FromBase64String(encryptedBase64);
+
+            //    // Decrypt the data (using the correct mode, e.g., CipherMode.CFB)
+            //    string decryptedText = EncryptionMaker.Decrypt(encryptedData, CipherMode.CFB); // Replace with the correct mode if different
+
+            //    Console.WriteLine("Decrypted text: " + decryptedText);
+            //}
+            //catch (Exception ex)
+            //{
+            //    Console.WriteLine("Decryption failed: " + ex.Message);
+            //}
 
 
             Data_Access_Layer dal = Data_Access_Layer.getInstance();
