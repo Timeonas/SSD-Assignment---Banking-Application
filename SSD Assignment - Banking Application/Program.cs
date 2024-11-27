@@ -8,8 +8,26 @@ namespace Banking_Application
 {
     public class Program
     {
+        //Variable
+        public static string currentUserRole = "";
+
         public static void Main(string[] args)
         {
+
+
+
+            // Step 1: Authenticate User
+            if (!AuthenticateUser())
+            {
+                // Exit the application if authentication fails
+                return;
+            }
+
+
+
+
+
+
             Console.WriteLine("Enter Teller Name:");
             string tellerName = Console.ReadLine();
             string deviceIdentifier = DeviceIdentifierHelper.GetDeviceIdentifier();
@@ -228,6 +246,14 @@ namespace Banking_Application
 
                         break;
                     case "2":
+
+                        //Check for proper admin perms
+                        if (currentUserRole != "Admin")
+                        {
+                            Console.WriteLine("Access Denied: Only admins can close accounts.");
+                            break;
+                        }
+
                         Console.WriteLine("Enter Account Number: ");
                         accNo = Console.ReadLine();
 
@@ -377,6 +403,35 @@ namespace Banking_Application
             } while (running != false);
 
         }
+
+        //Security Access
+        public static bool AuthenticateUser()
+        {
+            Console.WriteLine("Enter Username: ");
+            string username = Console.ReadLine();
+
+            Console.WriteLine("Enter Password: ");
+            string password = Console.ReadLine();
+
+            if (username == "admin" && password == "password123")
+            {
+                currentUserRole = "Admin";
+                Console.WriteLine("Login Successful!");
+                return true;
+            }
+            else if (username == "teller" && password == "teller123")
+            {
+                currentUserRole = "Teller";
+                Console.WriteLine("Login Successful!");
+                return true;
+            }
+            else
+            {
+                Console.WriteLine("Invalid credentials. Access Denied.");
+                return false;
+            }
+        }
+
 
     }
 }
