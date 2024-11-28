@@ -1,4 +1,5 @@
-﻿using SSD_Assignment___Banking_Application;
+﻿using Microsoft.Data.Sqlite;
+using SSD_Assignment___Banking_Application;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -13,7 +14,7 @@ namespace Banking_Application
 
         public static void Main(string[] args)
         {
-
+            //SetupDatabase();
 
 
             // Step 1: Authenticate User
@@ -413,25 +414,70 @@ namespace Banking_Application
             Console.WriteLine("Enter Password: ");
             string password = Console.ReadLine();
 
-            if (username == "admin" && password == "password123")
+            using (var connection = new SqliteConnection("Data Source=Banking Database.db"))
             {
-                currentUserRole = "Admin";
-                Console.WriteLine("Login Successful!");
-                return true;
-            }
-            else if (username == "teller" && password == "teller123")
-            {
-                currentUserRole = "Teller";
-                Console.WriteLine("Login Successful!");
-                return true;
-            }
-            else
-            {
-                Console.WriteLine("Invalid credentials. Access Denied.");
-                return false;
+                connection.Open();
+
+                var command = connection.CreateCommand();
+                command.CommandText = @"
+            SELECT role FROM Users
+            WHERE username = @username AND password = @password;
+        ";
+
+                //Use parameterized queries to prevent SQL injection
+                command.Parameters.AddWithValue("@username", username);
+                command.Parameters.AddWithValue("@password", password); 
+
+                //Execute the query
+                var role = command.ExecuteScalar() as string;
+
+                if (role != null)
+                {
+                    //Set the user's role if the query finds a match
+                    currentUserRole = role;
+                    Console.WriteLine($"Login Successful! Role: {role}");
+                    return true;
+                }
+                else
+                {
+                    Console.WriteLine("Invalid credentials. Access Denied.");
+                    return false;
+                }
             }
         }
 
+
+
+        /*
+        public static void SetupDatabase()
+        {
+            using (var connection = new SqliteConnection("Data Source=Banking Database.db"))
+            {
+                connection.Open();
+
+                var command = connection.CreateCommand();
+
+                // Add schema creation SQL
+                command.CommandText = @"
+            CREATE TABLE IF NOT EXISTS Users (
+                userId INTEGER PRIMARY KEY AUTOINCREMENT,
+                username TEXT UNIQUE NOT NULL,
+                password TEXT NOT NULL,
+                role TEXT NOT NULL
+            );
+            
+            INSERT OR IGNORE INTO Users (username, password, role)
+            VALUES 
+                ('Adam', 'password123', 'Admin'),
+                ('Tim', 'teller123', 'Teller');
+        ";
+
+                command.ExecuteNonQuery();
+
+                Console.WriteLine("Database setup complete!");
+            }
+        }
+        */
 
     }
 }
