@@ -1,9 +1,12 @@
 ﻿using Microsoft.Data.Sqlite;
+using Microsoft.Owin.Security.Infrastructure;
 using SSD_Assignment___Banking_Application;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Security.Cryptography;
+using System.Text;
 
 namespace Banking_Application
 {
@@ -14,20 +17,16 @@ namespace Banking_Application
 
         public static void Main(string[] args)
         {
-            //SetupDatabase();
+            //Uncoment when needed to perform database operations
+           //DatabaseStuff.SetupDatabase();
+            //DatabaseStuff.HashExistingPasswords();
 
-
-            // Step 1: Authenticate User
+            //Step 1: Authenticate User
             if (!AuthenticateUser())
             {
-                // Exit the application if authentication fails
+                //Exit the application if authentication fails
                 return;
             }
-
-
-
-
-
 
             Console.WriteLine("Enter Teller Name:");
             string tellerName = Console.ReadLine();
@@ -78,17 +77,17 @@ namespace Banking_Application
                 Console.WriteLine("6. Exit");
                 Console.WriteLine("CHOOSE OPTION:");
                 String option = Console.ReadLine();
-                
-                switch(option)
+
+                switch (option)
                 {
                     case "1":
                         String accountType = "";
                         int loopCount = 0;
-                        
+
                         do
                         {
 
-                           if(loopCount > 0)
+                            if (loopCount > 0)
                                 Console.WriteLine("INVALID OPTION CHOSEN - PLEASE TRY AGAIN");
 
                             Console.WriteLine("");
@@ -136,7 +135,7 @@ namespace Banking_Application
 
                         Console.WriteLine("Enter Address Line 2: ");
                         String addressLine2 = Console.ReadLine();
-                        
+
                         Console.WriteLine("Enter Address Line 3: ");
                         String addressLine3 = Console.ReadLine();
 
@@ -173,7 +172,7 @@ namespace Banking_Application
                                 balance = Convert.ToDouble(balanceString);
                             }
 
-                            catch 
+                            catch
                             {
                                 loopCount++;
                             }
@@ -273,7 +272,7 @@ namespace Banking_Application
                             do
                             {
 
-                                Console.WriteLine("Proceed With Delection (Y/N)?"); 
+                                Console.WriteLine("Proceed With Delection (Y/N)?");
                                 ans = Console.ReadLine();
 
                                 switch (ans)
@@ -298,7 +297,7 @@ namespace Banking_Application
 
                         ba = dal.findBankAccountByAccNo(accNo, tellerName, deviceIdentifier);
 
-                        if(ba is null) 
+                        if (ba is null)
                         {
                             Console.WriteLine("Account Does Not Exist");
                         }
@@ -385,7 +384,7 @@ namespace Banking_Application
 
                             bool withdrawalOK = dal.withdraw(accNo, amountToWithdraw, tellerName, deviceIdentifier);
 
-                            if(withdrawalOK == false)
+                            if (withdrawalOK == false)
                             {
 
                                 Console.WriteLine("Insufficient Funds Available.");
@@ -395,14 +394,42 @@ namespace Banking_Application
                     case "6":
                         running = false;
                         break;
-                    default:    
+                    default:
                         Console.WriteLine("INVALID OPTION CHOSEN - PLEASE TRY AGAIN");
                         break;
                 }
-                
-                
+
+
             } while (running != false);
 
+        }
+
+        //Method to generate a unique salt
+        public static class SecurityHelper
+        {
+            public static string GenerateSalt()
+            {
+                byte[] saltBytes = new byte[16];
+                using (var rng = RandomNumberGenerator.Create())
+                {
+                    rng.GetBytes(saltBytes);
+                }
+                return Convert.ToBase64String(saltBytes);
+            }
+
+            //Method to hash a value with a salt
+            public static string HashWithSalt(string value, string salt)
+            {
+                using (var sha256 = SHA256.Create())
+                {
+                    //Combine the value and the salt
+                    byte[] valueBytes = Encoding.UTF8.GetBytes(value + salt);
+                    //Compute hash
+                    byte[] hashBytes = sha256.ComputeHash(valueBytes);
+                    //Return the hash as a Base64 string
+                    return Convert.ToBase64String(hashBytes);
+                }
+            }
         }
 
         //Security Access
@@ -418,66 +445,81 @@ namespace Banking_Application
             {
                 connection.Open();
 
+                //Query for the user's hashed password and salt
                 var command = connection.CreateCommand();
                 command.CommandText = @"
-            SELECT role FROM Users
-            WHERE username = @username AND password = @password;
+            SELECT password, salt, role FROM Users WHERE username = @username;
         ";
-
-                //Use parameterized queries to prevent SQL injection
                 command.Parameters.AddWithValue("@username", username);
-                command.Parameters.AddWithValue("@password", password); 
 
-                //Execute the query
-                var role = command.ExecuteScalar() as string;
+                using (var reader = command.ExecuteReader())
+                {
+                    if (reader.Read())
+                    {
+                        string storedHash = reader.GetString(0);
+                        string salt = reader.GetString(1);
+                        string role = reader.GetString(2);
 
-                if (role != null)
-                {
-                    //Set the user's role if the query finds a match
-                    currentUserRole = role;
-                    Console.WriteLine($"Login Successful! Role: {role}");
-                    return true;
-                }
-                else
-                {
-                    Console.WriteLine("Invalid credentials. Access Denied.");
-                    return false;
+                        //Hash the entered password with the stored salt
+                        string hashedPassword = SecurityHelper.HashWithSalt(password, salt);
+
+                        if (storedHash == hashedPassword)
+                        {
+                            currentUserRole = role;
+                            Console.WriteLine($"Login Successful! Role: {role}");
+
+                            // Log the successful login
+                            LogLoginAttempt(username, "Success", "User logged in successfully.");
+                            return true;
+                        }
+                        else
+                        {
+                            Console.WriteLine("Invalid credentials. Access Denied.");
+
+                            // Debug statement
+                            Console.WriteLine("Logging failed attempt due to incorrect password.");
+
+                            // Log the failed login
+                            LogLoginAttempt(username, "Failure", "Incorrect password.");
+                            return false;
+                        }
+                    }
+                    else
+                    {
+                        Console.WriteLine("Invalid credentials. Access Denied.");
+
+                        // Debug statement
+                        Console.WriteLine("Logging failed attempt due to username not found.");
+
+                        // Log the failed login
+                        LogLoginAttempt(username, "Failure", "Username not found.");
+                        return false;
+                    }
                 }
             }
         }
 
-
-
-        /*
-        public static void SetupDatabase()
+        //MEthod to log attempts to sign in
+        public static void LogLoginAttempt(string username, string status, string details)
         {
-            using (var connection = new SqliteConnection("Data Source=Banking Database.db"))
+            string logEntry = $"WHO: {username}, STATUS: {status}, DETAILS: {details}, WHEN: {DateTime.Now}";
+
+            try
             {
-                connection.Open();
+                if (!EventLog.SourceExists("SSD Banking Application"))
+                {
+                    EventLog.CreateEventSource("SSD Banking Application", "Application");
+                }
 
-                var command = connection.CreateCommand();
-
-                // Add schema creation SQL
-                command.CommandText = @"
-            CREATE TABLE IF NOT EXISTS Users (
-                userId INTEGER PRIMARY KEY AUTOINCREMENT,
-                username TEXT UNIQUE NOT NULL,
-                password TEXT NOT NULL,
-                role TEXT NOT NULL
-            );
-            
-            INSERT OR IGNORE INTO Users (username, password, role)
-            VALUES 
-                ('Adam', 'password123', 'Admin'),
-                ('Tim', 'teller123', 'Teller');
-        ";
-
-                command.ExecuteNonQuery();
-
-                Console.WriteLine("Database setup complete!");
+                EventLog.WriteEntry("SSD Banking Application", logEntry, EventLogEntryType.Information);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error writing to event log: {ex.Message}");
             }
         }
-        */
+
+
 
     }
 }

@@ -243,81 +243,97 @@ namespace Banking_Application
 
         public bool lodge(String accNo, double amountToLodge, string tellerName, string deviceIdentifier)
         {
-
             Bank_Account toLodgeTo = null;
 
             foreach (Bank_Account ba in accounts)
             {
-
                 if (ba.accountNo.Equals(accNo))
                 {
                     ba.lodge(amountToLodge);
                     toLodgeTo = ba;
                     break;
                 }
-
             }
 
             if (toLodgeTo == null)
                 return false;
             else
             {
-
                 using (var connection = getDatabaseConnection())
                 {
                     connection.Open();
                     var command = connection.CreateCommand();
                     command.CommandText = "UPDATE Bank_Accounts SET balance = " + toLodgeTo.balance + " WHERE accountNo = '" + toLodgeTo.accountNo + "'";
                     command.ExecuteNonQuery();
-
                 }
 
-                string reason = amountToLodge > 10000 ? "Got paid extra at work" : "";
+                //Prompt the user for the reason
+                string reason = string.Empty;
+                if (amountToLodge > 10000)
+                {
+                    Console.WriteLine("Amount exceeds €10,000. Please provide a reason for the lodgement:");
+                    reason = Console.ReadLine();
+
+                    //Ensure reason is not left blank
+                    if (string.IsNullOrEmpty(reason))
+                    {
+                        reason = "Reason not specified by the user.";
+                    }
+                }
+
+                //Log the transaction
                 Logger.LogTransaction(tellerName, accNo, toLodgeTo.name, "Lodgement", deviceIdentifier, reason);
 
                 return true;
             }
-
         }
+
 
         public bool withdraw(String accNo, double amountToWithdraw, string tellerName, string deviceIdentifier)
         {
-
             Bank_Account toWithdrawFrom = null;
             bool result = false;
 
             foreach (Bank_Account ba in accounts)
             {
-
                 if (ba.accountNo.Equals(accNo))
                 {
                     result = ba.withdraw(amountToWithdraw);
                     toWithdrawFrom = ba;
                     break;
                 }
-
             }
 
             if (toWithdrawFrom == null || result == false)
                 return false;
             else
             {
-
                 using (var connection = getDatabaseConnection())
                 {
                     connection.Open();
                     var command = connection.CreateCommand();
                     command.CommandText = "UPDATE Bank_Accounts SET balance = " + toWithdrawFrom.balance + " WHERE accountNo = '" + toWithdrawFrom.accountNo + "'";
                     command.ExecuteNonQuery();
-
                 }
 
-                //Call Log
-                string reason = amountToWithdraw > 10000 ? "Taking money out for plumbing" : "";
+                // Prompt the user for the reason
+                string reason = string.Empty;
+                if (amountToWithdraw > 10000)
+                {
+                    Console.WriteLine("Amount exceeds €10,000. Please provide a reason for the withdrawal:");
+                    reason = Console.ReadLine();
+
+                    // Ensure reason is not left blank
+                    if (string.IsNullOrEmpty(reason))
+                    {
+                        reason = "Reason not specified by the user.";
+                    }
+                }
+
+                // Log the transaction
                 Logger.LogTransaction(tellerName, accNo, toWithdrawFrom.name, "Withdrawal", deviceIdentifier, reason);
                 return true;
             }
-
         }
 
     }
