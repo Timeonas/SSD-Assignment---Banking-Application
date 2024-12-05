@@ -12,14 +12,15 @@ namespace Banking_Application
 {
     public class Program
     {
+
         //Variable
         public static string currentUserRole = "";
 
         public static void Main(string[] args)
         {
             //Uncoment when needed to perform database operations
-           //DatabaseStuff.SetupDatabase();
-            //DatabaseStuff.HashExistingPasswords();
+          DatabaseStuff.SetupDatabase();
+            DatabaseStuff.HashExistingPasswords();
 
             //Step 1: Authenticate User
             if (!AuthenticateUser())
@@ -518,8 +519,6 @@ namespace Banking_Application
                 Console.WriteLine($"Error writing to event log: {ex.Message}");
             }
         }
-
-
 
     }
 }

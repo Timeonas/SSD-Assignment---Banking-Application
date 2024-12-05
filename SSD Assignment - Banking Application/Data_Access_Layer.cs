@@ -43,39 +43,9 @@ namespace Banking_Application
 
         }
 
-        private void initialiseDatabase()
-        {
-            using (var connection = getDatabaseConnection())
-            {
-                connection.Open();
-                var command = connection.CreateCommand();
-                command.CommandText =
-                @"
-                    CREATE TABLE IF NOT EXISTS Bank_Accounts(    
-                        accountNo INTEGER PRIMARY KEY AUTOINCREMENT,
-                        name TEXT NOT NULL,
-                        address_line_1 TEXT,
-                        address_line_2 TEXT,
-                        address_line_3 TEXT,
-                        town TEXT NOT NULL,
-                        balance REAL NOT NULL,
-                        accountType INTEGER NOT NULL,
-                        overdraftAmount REAL,
-                        interestRate REAL
-                    ) WITHOUT ROWID
-                ";
-
-                command.ExecuteNonQuery();
-                
-            }
-        }
-
         public void loadBankAccounts()
         {
-            if (!File.Exists(Data_Access_Layer.databaseName))
-                initialiseDatabase();
-            else
-            {
+
                 using (var connection = getDatabaseConnection())
                 {
                     connection.Open();
@@ -126,7 +96,6 @@ namespace Banking_Application
                     }
                 }
             }
-        }
 
         public String addBankAccount(Bank_Account ba, string tellerName, string deviceIdentifier)
         {
@@ -241,6 +210,7 @@ namespace Banking_Application
 
         }
 
+        //Method to lodge moeny into account
         public bool lodge(String accNo, double amountToLodge, string tellerName, string deviceIdentifier)
         {
             Bank_Account toLodgeTo = null;
@@ -259,37 +229,57 @@ namespace Banking_Application
                 return false;
             else
             {
-                using (var connection = getDatabaseConnection())
+                try
                 {
-                    connection.Open();
-                    var command = connection.CreateCommand();
-                    command.CommandText = "UPDATE Bank_Accounts SET balance = " + toLodgeTo.balance + " WHERE accountNo = '" + toLodgeTo.accountNo + "'";
-                    command.ExecuteNonQuery();
-                }
-
-                //Prompt the user for the reason
-                string reason = string.Empty;
-                if (amountToLodge > 10000)
-                {
-                    Console.WriteLine("Amount exceeds €10,000. Please provide a reason for the lodgement:");
-                    reason = Console.ReadLine();
-
-                    //Ensure reason is not left blank
-                    if (string.IsNullOrEmpty(reason))
+                    using (var connection = getDatabaseConnection())
                     {
-                        reason = "Reason not specified by the user.";
+                        connection.Open();
+                        var command = connection.CreateCommand();
+                        command.CommandText = "UPDATE Bank_Accounts SET balance = balance + @amount WHERE accountNo = @accNo";
+                        command.Parameters.AddWithValue("@amount", amountToLodge);
+                        command.Parameters.AddWithValue("@accNo", accNo);
+                        command.ExecuteNonQuery();
                     }
+
+                    //Ask the user for the reason
+                    string reason = string.Empty;
+                    if (amountToLodge > 10000)
+                    {
+                        do
+                        {
+                            Console.WriteLine("Amount exceeds €10,000. Please provide a reason for the lodgement:");
+                            reason = Console.ReadLine();
+
+                            if (string.IsNullOrWhiteSpace(reason) || reason.Length < 5)
+                            {
+                                Console.WriteLine("Reason is too short. Please provide a valid reason.");
+                            }
+
+                        } while (string.IsNullOrWhiteSpace(reason) || reason.Length < 5);
+                    }
+                    else
+                    {
+                        reason = "Standard transaction.";
+                    }
+
+                    //Log the transaction
+                    Logger.LogTransaction(tellerName, accNo, toLodgeTo.name, "Lodgement", deviceIdentifier, $"{reason} (Amount: {amountToLodge})");
+
+                    //Confirm the transaction to the user
+                    Console.WriteLine($"Successfully lodged €{amountToLodge} into account {accNo}.");
+                    return true;
                 }
-
-                //Log the transaction
-                Logger.LogTransaction(tellerName, accNo, toLodgeTo.name, "Lodgement", deviceIdentifier, reason);
-
-                return true;
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Error during lodgement: {ex.Message}");
+                    return false;
+                }
             }
         }
 
 
-        public bool withdraw(String accNo, double amountToWithdraw, string tellerName, string deviceIdentifier)
+        //Method for withdrawing the money
+        public bool withdraw(string accNo, double amountToWithdraw, string tellerName, string deviceIdentifier)
         {
             Bank_Account toWithdrawFrom = null;
             bool result = false;
@@ -305,36 +295,59 @@ namespace Banking_Application
             }
 
             if (toWithdrawFrom == null || result == false)
+            {
+                Console.WriteLine("Withdrawal failed: Account not found or insufficient funds.");
                 return false;
+            }
             else
             {
-                using (var connection = getDatabaseConnection())
+                try
                 {
-                    connection.Open();
-                    var command = connection.CreateCommand();
-                    command.CommandText = "UPDATE Bank_Accounts SET balance = " + toWithdrawFrom.balance + " WHERE accountNo = '" + toWithdrawFrom.accountNo + "'";
-                    command.ExecuteNonQuery();
-                }
-
-                // Prompt the user for the reason
-                string reason = string.Empty;
-                if (amountToWithdraw > 10000)
-                {
-                    Console.WriteLine("Amount exceeds €10,000. Please provide a reason for the withdrawal:");
-                    reason = Console.ReadLine();
-
-                    // Ensure reason is not left blank
-                    if (string.IsNullOrEmpty(reason))
+                    using (var connection = getDatabaseConnection())
                     {
-                        reason = "Reason not specified by the user.";
+                        connection.Open();
+                        var command = connection.CreateCommand();
+                        command.CommandText = "UPDATE Bank_Accounts SET balance = balance - @amount WHERE accountNo = @accNo";
+                        command.Parameters.AddWithValue("@amount", amountToWithdraw);
+                        command.Parameters.AddWithValue("@accNo", accNo);
+                        command.ExecuteNonQuery();
                     }
-                }
 
-                // Log the transaction
-                Logger.LogTransaction(tellerName, accNo, toWithdrawFrom.name, "Withdrawal", deviceIdentifier, reason);
-                return true;
+                    // Prompt the user for the reason
+                    string reason = string.Empty;
+                    if (amountToWithdraw > 10000)
+                    {
+                        do
+                        {
+                            Console.WriteLine("Amount exceeds €10,000. Please provide a reason for the withdrawal:");
+                            reason = Console.ReadLine();
+
+                            if (string.IsNullOrWhiteSpace(reason) || reason.Length < 5)
+                            {
+                                Console.WriteLine("Reason is too short. Please provide a valid reason.");
+                            }
+                        } while (string.IsNullOrWhiteSpace(reason) || reason.Length < 5);
+                    }
+                    else
+                    {
+                        reason = "Standard transaction.";
+                    }
+
+                    //Log the transaction
+                    Logger.LogTransaction(tellerName, accNo, toWithdrawFrom.name, "Withdrawal", deviceIdentifier, $"{reason} (Amount: {amountToWithdraw})");
+
+                    //Confirm the transaction to the user
+                    Console.WriteLine($"Successfully withdrew €{amountToWithdraw} from account {accNo}.");
+                    return true;
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Error during withdrawal: {ex.Message}");
+                    return false;
+                }
             }
         }
+
 
     }
 }
