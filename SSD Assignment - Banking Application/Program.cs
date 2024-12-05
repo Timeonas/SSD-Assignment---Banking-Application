@@ -1,11 +1,9 @@
-﻿using Microsoft.AspNetCore.Authentication;
-using Microsoft.Data.Sqlite;
+﻿using Microsoft.Data.Sqlite;
 using Microsoft.Owin.Security.Infrastructure;
 using SSD_Assignment___Banking_Application;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.DirectoryServices.AccountManagement;
 using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
@@ -435,7 +433,7 @@ namespace Banking_Application
             }
         }
 
-        //Check to see if user has perms
+        //Security Access
         public static bool AuthenticateUser()
         {
             Console.WriteLine("Enter Username: ");
@@ -444,35 +442,66 @@ namespace Banking_Application
             Console.WriteLine("Enter Password: ");
             string password = Console.ReadLine();
 
-            // Specify the group for this role
-            string groupName = "Bank Tellers";
-
-            try
+            // Validate input
+            if (string.IsNullOrWhiteSpace(username) || string.IsNullOrWhiteSpace(password))
             {
-                if (AuthenticateWithActiveDirectory(username, password, groupName))
-                {
-                    // Log successful login
-                    LogLoginAttempt(username, "Success", "User authenticated and group membership verified.");
-                    Console.WriteLine("Login successful!");
-                    return true;
-                }
-                else
-                {
-                    // Log failed login
-                    LogLoginAttempt(username, "Failure", "Authentication failed or user not in group.");
-                    Console.WriteLine("Invalid credentials or insufficient permissions.");
-                    return false;
-                }
-            }
-            catch (Exception ex)
-            {
-                // Log unexpected error
-                LogLoginAttempt(username, "Failure", $"Unexpected error: {ex.Message}");
-                Console.WriteLine($"An error occurred during authentication: {ex.Message}");
+                Console.WriteLine("Username and password cannot be empty.");
+                LogLoginAttempt(username, "Failure", "Empty username or password.");
                 return false;
             }
-        }
 
+            using (var connection = new SqliteConnection("Data Source=Banking Database.db"))
+            {
+                connection.Open();
+
+                var command = connection.CreateCommand();
+                command.CommandText = @"
+            SELECT password, salt, role 
+            FROM Users 
+            WHERE username = @username;
+        ";
+                command.Parameters.AddWithValue("@username", username);
+
+                using (var reader = command.ExecuteReader())
+                {
+                    if (reader.Read())
+                    {
+                        string storedHash = reader.GetString(0);
+                        string salt = reader.GetString(1);
+                        string role = reader.GetString(2);
+
+                        // Hash the entered password with the stored salt
+                        string hashedPassword = SecurityHelper.HashWithSalt(password, salt);
+
+                        if (storedHash == hashedPassword)
+                        {
+                            currentUserRole = role;
+                            Console.WriteLine($"Login Successful! Role: {role}");
+
+                            // Log the successful login
+                            LogLoginAttempt(username, "Success", "User logged in successfully.");
+                            return true;
+                        }
+                        else
+                        {
+                            Console.WriteLine("Invalid credentials. Access Denied.");
+
+                            // Log the failed login
+                            LogLoginAttempt(username, "Failure", "Incorrect password.");
+                            return false;
+                        }
+                    }
+                    else
+                    {
+                        Console.WriteLine("Invalid credentials. Access Denied.");
+
+                        // Log the failed login
+                        LogLoginAttempt(username, "Failure", "Username not found.");
+                        return false;
+                    }
+                }
+            }
+        }
 
 
         //MEthod to log attempts to sign in
@@ -493,33 +522,6 @@ namespace Banking_Application
             {
                 Console.WriteLine($"Error writing to event log: {ex.Message}");
             }
-        }
-
-        public static bool AuthenticateWithActiveDirectory(string username, string password, string groupName)
-        {
-            using (PrincipalContext context = new PrincipalContext(ContextType.Domain, "ITSLIGO.LAN"))
-            {
-                // Validate credentials
-                if (context.ValidateCredentials(username, password))
-                {
-                    // Check group membership
-                    using (UserPrincipal user = UserPrincipal.FindByIdentity(context, username))
-                    {
-                        if (user != null)
-                        {
-                            foreach (var group in user.GetAuthorizationGroups())
-                            {
-                                if (group.Name == groupName)
-                                {
-                                    return true; // Authenticated and belongs to the group
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            return false; // Authentication failed or user not in the group
         }
 
 

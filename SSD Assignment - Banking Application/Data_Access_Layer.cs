@@ -172,43 +172,62 @@ namespace Banking_Application
             return null; 
         }
 
-        public bool closeBankAccount(String accNo, string tellerName, string deviceIdentifier) 
+        //Method to delete bank account
+        public bool closeBankAccount(String accNo, string tellerName, string deviceIdentifier)
         {
+            // Check if the user has admin permissions
+            if (!IsUserAdmin(tellerName))
+            {
+                Console.WriteLine("Access Denied: Only administrators can close bank accounts.");
+                Logger.LogTransaction(tellerName, accNo, "N/A", "Unauthorized Account Closure Attempt", deviceIdentifier);
+                return false;
+            }
 
             Bank_Account toRemove = null;
-            
+
             foreach (Bank_Account ba in accounts)
             {
-
                 if (ba.accountNo.Equals(accNo))
                 {
                     toRemove = ba;
                     break;
                 }
-
             }
 
             if (toRemove == null)
+            {
+                Console.WriteLine("Account not found.");
                 return false;
+            }
             else
             {
+                // Confirm the deletion
+                Console.WriteLine("Are you sure you want to close this account? (Y/N): ");
+                string confirmation = Console.ReadLine();
+                if (!confirmation.Equals("Y", StringComparison.OrdinalIgnoreCase))
+                {
+                    Console.WriteLine("Account closure canceled.");
+                    return false;
+                }
+
                 accounts.Remove(toRemove);
 
                 using (var connection = getDatabaseConnection())
                 {
                     connection.Open();
                     var command = connection.CreateCommand();
-                    command.CommandText = "DELETE FROM Bank_Accounts WHERE accountNo = '" + toRemove.accountNo + "'";
+                    command.CommandText = "DELETE FROM Bank_Accounts WHERE accountNo = @accountNo";
+                    command.Parameters.AddWithValue("@accountNo", toRemove.accountNo);
                     command.ExecuteNonQuery();
-
                 }
 
-                //Call Log
+                // Call Log
                 Logger.LogTransaction(tellerName, accNo, toRemove.name, "Account Closure", deviceIdentifier);
+                Console.WriteLine("Account successfully closed.");
                 return true;
             }
-
         }
+
 
         //Method to lodge moeny into account
         public bool lodge(String accNo, double amountToLodge, string tellerName, string deviceIdentifier)
@@ -345,6 +364,22 @@ namespace Banking_Application
                     Console.WriteLine($"Error during withdrawal: {ex.Message}");
                     return false;
                 }
+            }
+        }
+
+        //Helper calss to confirm admin
+        private bool IsUserAdmin(string tellerName)
+        {
+            //Replace this with your actual role-checking logic
+            using (var connection = getDatabaseConnection())
+            {
+                connection.Open();
+                var command = connection.CreateCommand();
+                command.CommandText = "SELECT role FROM Users WHERE username = @username";
+                command.Parameters.AddWithValue("@username", tellerName);
+
+                var role = command.ExecuteScalar()?.ToString();
+                return role != null && role.Equals("Admin", StringComparison.OrdinalIgnoreCase);
             }
         }
 

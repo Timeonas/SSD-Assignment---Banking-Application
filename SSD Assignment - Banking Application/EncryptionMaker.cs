@@ -1,21 +1,50 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
+using System.IO;
 using System.Security.Cryptography;
 using System.Text;
-using System.Threading.Tasks;
 
 namespace SSD_Assignment___Banking_Application
 {
     public static class EncryptionMaker
     {
-        private static readonly byte[] Key = Encoding.UTF8.GetBytes("ThisIsA16ByteKey");
+        private const string KeyFilePath = "encryption_key.dat"; //Path to store the encrypted key
+
+        // Generate, protect, and store the key (DPAPI)
+        private static byte[] GetOrCreateKey()
+        {
+            if (!File.Exists(KeyFilePath))
+            {
+                // Generate a random 16-byte key for AES-128
+                byte[] key = new byte[16];
+                using (var rng = new RNGCryptoServiceProvider())
+                {
+                    rng.GetBytes(key);
+                }
+
+                // Protect the key using DPAPI
+                byte[] protectedKey = ProtectedData.Protect(key, null, DataProtectionScope.CurrentUser);
+
+                // Save the encrypted key to a file
+                File.WriteAllBytes(KeyFilePath, protectedKey);
+                return key;
+            }
+            else
+            {
+                // Read the encrypted key from the file
+                byte[] protectedKey = File.ReadAllBytes(KeyFilePath);
+
+                // Unprotect the key using DPAPI
+                return ProtectedData.Unprotect(protectedKey, null, DataProtectionScope.CurrentUser);
+            }
+        }
+
+        private static readonly byte[] Key = GetOrCreateKey();
 
         public static byte[] Encrypt(string plainText, CipherMode mode)
         {
             using (Aes aes = Aes.Create())
             {
-                aes.KeySize = 128; // Explicitly set key size for AES-256
+                aes.KeySize = 128; // For AES-128
                 aes.Key = Key;
                 aes.Mode = mode;
                 aes.Padding = PaddingMode.PKCS7;
@@ -24,6 +53,7 @@ namespace SSD_Assignment___Banking_Application
                 using (var encryptor = aes.CreateEncryptor(aes.Key, aes.IV))
                 using (var ms = new MemoryStream())
                 {
+                    // Write the IV to the beginning of the stream
                     ms.Write(aes.IV, 0, aes.IV.Length);
 
                     using (var cs = new CryptoStream(ms, encryptor, CryptoStreamMode.Write))
@@ -41,12 +71,12 @@ namespace SSD_Assignment___Banking_Application
         {
             using (Aes aes = Aes.Create())
             {
-                aes.KeySize = 128; // Explicitly set key size for AES-256
+                aes.KeySize = 128; //For AES-128
                 aes.Key = Key;
                 aes.Mode = mode;
                 aes.Padding = PaddingMode.PKCS7;
 
-                // Read the IV from the beginning of the cipherText
+                //Read the IV from the beginning of the cipherText
                 byte[] iv = new byte[aes.BlockSize / 8];
                 Array.Copy(cipherText, iv, iv.Length);
                 aes.IV = iv;
