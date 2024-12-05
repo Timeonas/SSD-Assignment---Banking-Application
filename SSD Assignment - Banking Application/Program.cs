@@ -1,9 +1,11 @@
-﻿using Microsoft.Data.Sqlite;
+﻿using Microsoft.AspNetCore.Authentication;
+using Microsoft.Data.Sqlite;
 using Microsoft.Owin.Security.Infrastructure;
 using SSD_Assignment___Banking_Application;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.DirectoryServices.AccountManagement;
 using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
@@ -433,7 +435,7 @@ namespace Banking_Application
             }
         }
 
-        //Security Access
+        //Check to see if user has perms
         public static bool AuthenticateUser()
         {
             Console.WriteLine("Enter Username: ");
@@ -442,63 +444,36 @@ namespace Banking_Application
             Console.WriteLine("Enter Password: ");
             string password = Console.ReadLine();
 
-            using (var connection = new SqliteConnection("Data Source=Banking Database.db"))
+            // Specify the group for this role
+            string groupName = "Bank Tellers";
+
+            try
             {
-                connection.Open();
-
-                //Query for the user's hashed password and salt
-                var command = connection.CreateCommand();
-                command.CommandText = @"
-            SELECT password, salt, role FROM Users WHERE username = @username;
-        ";
-                command.Parameters.AddWithValue("@username", username);
-
-                using (var reader = command.ExecuteReader())
+                if (AuthenticateWithActiveDirectory(username, password, groupName))
                 {
-                    if (reader.Read())
-                    {
-                        string storedHash = reader.GetString(0);
-                        string salt = reader.GetString(1);
-                        string role = reader.GetString(2);
-
-                        //Hash the entered password with the stored salt
-                        string hashedPassword = SecurityHelper.HashWithSalt(password, salt);
-
-                        if (storedHash == hashedPassword)
-                        {
-                            currentUserRole = role;
-                            Console.WriteLine($"Login Successful! Role: {role}");
-
-                            // Log the successful login
-                            LogLoginAttempt(username, "Success", "User logged in successfully.");
-                            return true;
-                        }
-                        else
-                        {
-                            Console.WriteLine("Invalid credentials. Access Denied.");
-
-                            // Debug statement
-                            Console.WriteLine("Logging failed attempt due to incorrect password.");
-
-                            // Log the failed login
-                            LogLoginAttempt(username, "Failure", "Incorrect password.");
-                            return false;
-                        }
-                    }
-                    else
-                    {
-                        Console.WriteLine("Invalid credentials. Access Denied.");
-
-                        // Debug statement
-                        Console.WriteLine("Logging failed attempt due to username not found.");
-
-                        // Log the failed login
-                        LogLoginAttempt(username, "Failure", "Username not found.");
-                        return false;
-                    }
+                    // Log successful login
+                    LogLoginAttempt(username, "Success", "User authenticated and group membership verified.");
+                    Console.WriteLine("Login successful!");
+                    return true;
+                }
+                else
+                {
+                    // Log failed login
+                    LogLoginAttempt(username, "Failure", "Authentication failed or user not in group.");
+                    Console.WriteLine("Invalid credentials or insufficient permissions.");
+                    return false;
                 }
             }
+            catch (Exception ex)
+            {
+                // Log unexpected error
+                LogLoginAttempt(username, "Failure", $"Unexpected error: {ex.Message}");
+                Console.WriteLine($"An error occurred during authentication: {ex.Message}");
+                return false;
+            }
         }
+
+
 
         //MEthod to log attempts to sign in
         public static void LogLoginAttempt(string username, string status, string details)
@@ -519,6 +494,35 @@ namespace Banking_Application
                 Console.WriteLine($"Error writing to event log: {ex.Message}");
             }
         }
+
+        public static bool AuthenticateWithActiveDirectory(string username, string password, string groupName)
+        {
+            using (PrincipalContext context = new PrincipalContext(ContextType.Domain, "ITSLIGO.LAN"))
+            {
+                // Validate credentials
+                if (context.ValidateCredentials(username, password))
+                {
+                    // Check group membership
+                    using (UserPrincipal user = UserPrincipal.FindByIdentity(context, username))
+                    {
+                        if (user != null)
+                        {
+                            foreach (var group in user.GetAuthorizationGroups())
+                            {
+                                if (group.Name == groupName)
+                                {
+                                    return true; // Authenticated and belongs to the group
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            return false; // Authentication failed or user not in the group
+        }
+
+
 
     }
 }
