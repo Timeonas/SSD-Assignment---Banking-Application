@@ -175,16 +175,9 @@ namespace Banking_Application
         //Method to delete bank account
         public bool closeBankAccount(String accNo, string tellerName, string deviceIdentifier)
         {
-            // Check if the user has admin permissions
-            if (!IsUserAdmin(tellerName))
-            {
-                Console.WriteLine("Access Denied: Only administrators can close bank accounts.");
-                Logger.LogTransaction(tellerName, accNo, "N/A", "Unauthorized Account Closure Attempt", deviceIdentifier);
-                return false;
-            }
-
             Bank_Account toRemove = null;
 
+            // Locate the account to remove
             foreach (Bank_Account ba in accounts)
             {
                 if (ba.accountNo.Equals(accNo))
@@ -210,23 +203,34 @@ namespace Banking_Application
                     return false;
                 }
 
+                // Remove the account from the in-memory list
                 accounts.Remove(toRemove);
 
-                using (var connection = getDatabaseConnection())
+                // Delete the account from the database
+                try
                 {
-                    connection.Open();
-                    var command = connection.CreateCommand();
-                    command.CommandText = "DELETE FROM Bank_Accounts WHERE accountNo = @accountNo";
-                    command.Parameters.AddWithValue("@accountNo", toRemove.accountNo);
-                    command.ExecuteNonQuery();
-                }
+                    using (var connection = getDatabaseConnection())
+                    {
+                        connection.Open();
+                        var command = connection.CreateCommand();
+                        command.CommandText = "DELETE FROM Bank_Accounts WHERE accountNo = @accountNo";
+                        command.Parameters.AddWithValue("@accountNo", toRemove.accountNo);
+                        command.ExecuteNonQuery();
+                    }
 
-                // Call Log
-                Logger.LogTransaction(tellerName, accNo, toRemove.name, "Account Closure", deviceIdentifier);
-                Console.WriteLine("Account successfully closed.");
-                return true;
+                    // Log the successful closure
+                    Logger.LogTransaction(tellerName, accNo, toRemove.name, "Account Closure", deviceIdentifier);
+                    Console.WriteLine("Account successfully closed.");
+                    return true;
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Error while closing the account: {ex.Message}");
+                    return false;
+                }
             }
         }
+
 
 
         //Method to lodge moeny into account

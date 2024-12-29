@@ -6,7 +6,6 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
 
-
 namespace SSD_Assignment___Banking_Application
 {
     public static class Logger
@@ -18,29 +17,56 @@ namespace SSD_Assignment___Banking_Application
                                                       .ToString();
         private static readonly string AppHash = GetApplicationHash();
 
-
         public static void LogTransaction(
-        string tellerName,
-        string accountNo,
-        string accountHolderName,
-        string transactionType,
-        string deviceIdentifier,
-        string reason = "",
-        double amount = 0.0
-            )
+            string tellerName,
+            string accountNo,
+            string accountHolderName,
+            string transactionType,
+            string deviceIdentifier,
+            string reason = "",
+            double amount = 0.0,
+            EventLogEntryType logType = EventLogEntryType.Information // New parameter for log level
+        )
         {
-            string logEntry = $@"
-            WHO-1: {tellerName},
-            WHO-2: {accountNo}, {accountHolderName},
-            WHAT: {transactionType},
-            WHERE: {deviceIdentifier},
-            WHEN: {DateTime.Now},
-            WHY: {reason},
-            HOW: {AppName}, Version: {AppVersion}, Hash: {AppHash}
-        ";
+            try
+            {
+                string logEntry = $@"
+                WHO-1: {tellerName},
+                WHO-2: {accountNo}, {accountHolderName},
+                WHAT: {transactionType},
+                WHERE: {deviceIdentifier},
+                WHEN: {DateTime.Now},
+                WHY: {reason},
+                HOW: {AppName}, Version: {AppVersion}, Hash: {AppHash}
+            ";
 
-            // Write log to Windows Event Log
-            EventLog.WriteEntry(AppName, logEntry, EventLogEntryType.Information);
+                // Write log to Windows Event Log
+                if (!EventLog.SourceExists(AppName))
+                {
+                    EventLog.CreateEventSource(AppName, "Application");
+                }
+                EventLog.WriteEntry(AppName, logEntry, logType);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error while logging transaction: {ex.Message}");
+            }
+        }
+
+        public static void LogEvent(string message, EventLogEntryType logType = EventLogEntryType.Information)
+        {
+            try
+            {
+                if (!EventLog.SourceExists(AppName))
+                {
+                    EventLog.CreateEventSource(AppName, "Application");
+                }
+                EventLog.WriteEntry(AppName, message, logType);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error while logging event: {ex.Message}");
+            }
         }
 
         private static string GetApplicationHash()

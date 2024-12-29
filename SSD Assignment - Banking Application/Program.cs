@@ -1,5 +1,4 @@
 ﻿using Microsoft.Data.Sqlite;
-using Microsoft.Owin.Security.Infrastructure;
 using SSD_Assignment___Banking_Application;
 using System;
 using System.Collections.Generic;
@@ -7,59 +6,35 @@ using System.Diagnostics;
 using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
+using System.DirectoryServices.AccountManagement;
+using System.DirectoryServices.Protocols;
+using System.Net;
 
 namespace Banking_Application
 {
     public class Program
     {
-
-        //Variable
+        // Variable to store current user role
         public static string currentUserRole = "";
 
         public static void Main(string[] args)
         {
-            //Uncoment when needed to perform database operations
-          DatabaseStuff.SetupDatabase();
-            DatabaseStuff.HashExistingPasswords();
+            DatabaseStuff.SetupDatabase();
+            //DatabaseStuff.HashExistingPasswords();
+        
+    
 
-            //Step 1: Authenticate User
-            if (!AuthenticateUser())
-            {
-                //Exit the application if authentication fails
-                return;
-            }
-
+            
+            //Authenticate User
+            //if (!AuthenticateUser())
+            //{
+            //    //Exit the application if authentication fails
+            //    return;
+            //}
+            
             Console.WriteLine("Enter Teller Name:");
             string tellerName = Console.ReadLine();
             string deviceIdentifier = DeviceIdentifierHelper.GetDeviceIdentifier();
-
-
-            //Test if it encryptes
-            //Console.WriteLine("Run encryption tests? (y/n): ");
-            //string input = Console.ReadLine();
-            //if (input?.ToLower() == "y")
-            //{
-            //    EncriptionTest.RunEncryptionTests();
-            //}
-
-            //Test To decrpyt
-            //string encryptedBase64 = "nvE1Kj1114m3Xep/sg/qLY1V9ZyyLwqz0vwfEIcU/Ol50W8yf9gWLSvlyI8H8U/kQRVpsKY="; // Replace with your actual encrypted Base64 string
-
-            //try
-            //{
-            //    // Convert the Base64-encoded string back to a byte array
-            //    byte[] encryptedData = Convert.FromBase64String(encryptedBase64);
-
-            //    // Decrypt the data (using the correct mode, e.g., CipherMode.CFB)
-            //    string decryptedText = EncryptionMaker.Decrypt(encryptedData, CipherMode.CFB); // Replace with the correct mode if different
-
-            //    Console.WriteLine("Decrypted text: " + decryptedText);
-            //}
-            //catch (Exception ex)
-            //{
-            //    Console.WriteLine("Decryption failed: " + ex.Message);
-            //}
-
 
             Data_Access_Layer dal = Data_Access_Layer.getInstance();
             dal.loadBankAccounts();
@@ -67,7 +42,6 @@ namespace Banking_Application
 
             do
             {
-
                 Console.WriteLine("");
                 Console.WriteLine("***Banking Application Menu***");
                 Console.WriteLine("1. Add Bank Account");
@@ -81,7 +55,7 @@ namespace Banking_Application
 
                 switch (option)
                 {
-                    case "1":
+            case "1":
                         String accountType = "";
                         int loopCount = 0;
 
@@ -247,50 +221,64 @@ namespace Banking_Application
 
                         break;
                     case "2":
-
-                        //Check for proper admin perms
-                        if (currentUserRole != "Admin")
-                        {
-                            Console.WriteLine("Access Denied: Only admins can close accounts.");
-                            break;
-                        }
-
                         Console.WriteLine("Enter Account Number: ");
-                        accNo = Console.ReadLine();
+                        string accNoInput = Console.ReadLine();
 
-                        ba = dal.findBankAccountByAccNo(accNo, tellerName, deviceIdentifier);
-
-                        if (ba is null)
+                        var ba1 = dal.findBankAccountByAccNo(accNoInput, tellerName, deviceIdentifier);
+                        if (ba1 is null)
                         {
                             Console.WriteLine("Account Does Not Exist");
                         }
                         else
                         {
-                            Console.WriteLine(ba.ToString());
+                            Console.WriteLine(ba1.ToString());
 
-                            String ans = "";
+                            // Commented out administrator approval
+                            /*
+                            Console.WriteLine("Administrator approval is required to delete this account.");
+                            Console.WriteLine("Enter Administrator Username:");
+                            string adminUsername = Console.ReadLine();
 
-                            do
+                            Console.WriteLine("Enter Administrator Password:");
+                            string adminPassword = ReadPassword();
+
+                            try
                             {
-
-                                Console.WriteLine("Proceed With Delection (Y/N)?");
-                                ans = Console.ReadLine();
-
-                                switch (ans)
+                                using (var context = new PrincipalContext(ContextType.Domain, "ITSLIGO.LAN"))
                                 {
-                                    case "Y":
-                                    case "y": dal.closeBankAccount(accNo, tellerName, deviceIdentifier);
-                                        break;
-                                    case "N":
-                                    case "n":
-                                        break;
-                                    default:
-                                        Console.WriteLine("INVALID OPTION CHOSEN - PLEASE TRY AGAIN");
-                                        break;
+                                    if (context.ValidateCredentials(adminUsername, adminPassword))
+                                    {
+                                        using (var adminUser = UserPrincipal.FindByIdentity(context, adminUsername))
+                                        {
+                                            if (adminUser != null && adminUser.IsMemberOf(context, IdentityType.SamAccountName, "Bank Teller Administrator User Group"))
+                                            {
+                                                Console.WriteLine("Approval Granted. Proceeding with deletion.");
+                                                dal.closeBankAccount(accNoInput, tellerName, deviceIdentifier);
+                                                Console.WriteLine("Account deleted successfully.");
+                                            }
+                                            else
+                                            {
+                                                Console.WriteLine("Access Denied: User is not an administrator.");
+                                            }
+                                        }
+                                    }
+                                    else
+                                    {
+                                        Console.WriteLine("Invalid administrator credentials. Deletion aborted.");
+                                    }
                                 }
-                            } while (!(ans.Equals("Y") || ans.Equals("y") || ans.Equals("N") || ans.Equals("n")));
-                        }
+                            }
+                            catch (Exception ex)
+                            {
+                                Console.WriteLine($"Error during administrator approval: {ex.Message}");
+                            }
+                            */
 
+                            // Direct deletion logic without administrator approval
+                            Console.WriteLine("Proceeding with deletion without administrator approval.");
+                            dal.closeBankAccount(accNoInput, tellerName, deviceIdentifier);
+                            Console.WriteLine("Account deleted successfully.");
+                        }
                         break;
                     case "3":
                         Console.WriteLine("Enter Account Number: ");
@@ -405,35 +393,6 @@ namespace Banking_Application
 
         }
 
-        //Method to generate a unique salt
-        public static class SecurityHelper
-        {
-            public static string GenerateSalt()
-            {
-                byte[] saltBytes = new byte[16];
-                using (var rng = RandomNumberGenerator.Create())
-                {
-                    rng.GetBytes(saltBytes);
-                }
-                return Convert.ToBase64String(saltBytes);
-            }
-
-            //Method to hash a value with a salt
-            public static string HashWithSalt(string value, string salt)
-            {
-                using (var sha256 = SHA256.Create())
-                {
-                    //Combine the value and the salt
-                    byte[] valueBytes = Encoding.UTF8.GetBytes(value + salt);
-                    //Compute hash
-                    byte[] hashBytes = sha256.ComputeHash(valueBytes);
-                    //Return the hash as a Base64 string
-                    return Convert.ToBase64String(hashBytes);
-                }
-            }
-        }
-
-        //Security Access
         public static bool AuthenticateUser()
         {
             Console.WriteLine("Enter Username: ");
@@ -442,80 +401,99 @@ namespace Banking_Application
             Console.WriteLine("Enter Password: ");
             string password = Console.ReadLine();
 
-            // Validate input
-            if (string.IsNullOrWhiteSpace(username) || string.IsNullOrWhiteSpace(password))
+            try
             {
-                Console.WriteLine("Username and password cannot be empty.");
-                LogLoginAttempt(username, "Failure", "Empty username or password.");
+                string domain = "ITSLIGO.LAN";
+                string ldapServer = "ldap://ITSLIGO.LAN";
+
+                using (var ldapConnection = new LdapConnection(ldapServer))
+                {
+                    ldapConnection.Credential = new NetworkCredential(username, password, domain);
+                    ldapConnection.AuthType = AuthType.Negotiate;
+
+                    // Authenticate by binding to the server
+                    ldapConnection.Bind();
+
+                    // If we reach this point, authentication succeeded
+                    Console.WriteLine("Authentication successful!");
+                    LogLoginAttempt(username, "Success", "User authenticated successfully.");
+
+                    // Check roles (optional, based on your Active Directory setup)
+                    currentUserRole = IsUserInGroup(username, domain, "Bank Teller Administrator User Group")
+                        ? "Admin"
+                        : "Teller";
+
+                    Console.WriteLine($"Login Successful! Role: {currentUserRole}");
+                    return true;
+                }
+            }
+            catch (LdapException ex)
+            {
+                Console.WriteLine($"LDAP Authentication failed: {ex.Message}");
+                LogLoginAttempt(username, "Failure", "Invalid credentials or insufficient permissions.");
                 return false;
             }
-
-            using (var connection = new SqliteConnection("Data Source=Banking Database.db"))
+            catch (Exception ex)
             {
-                connection.Open();
-
-                var command = connection.CreateCommand();
-                command.CommandText = @"
-            SELECT password, salt, role 
-            FROM Users 
-            WHERE username = @username;
-        ";
-                command.Parameters.AddWithValue("@username", username);
-
-                using (var reader = command.ExecuteReader())
-                {
-                    if (reader.Read())
-                    {
-                        string storedHash = reader.GetString(0);
-                        string salt = reader.GetString(1);
-                        string role = reader.GetString(2);
-
-                        // Hash the entered password with the stored salt
-                        string hashedPassword = SecurityHelper.HashWithSalt(password, salt);
-
-                        if (storedHash == hashedPassword)
-                        {
-                            currentUserRole = role;
-                            Console.WriteLine($"Login Successful! Role: {role}");
-
-                            // Log the successful login
-                            LogLoginAttempt(username, "Success", "User logged in successfully.");
-                            return true;
-                        }
-                        else
-                        {
-                            Console.WriteLine("Invalid credentials. Access Denied.");
-
-                            // Log the failed login
-                            LogLoginAttempt(username, "Failure", "Incorrect password.");
-                            return false;
-                        }
-                    }
-                    else
-                    {
-                        Console.WriteLine("Invalid credentials. Access Denied.");
-
-                        // Log the failed login
-                        LogLoginAttempt(username, "Failure", "Username not found.");
-                        return false;
-                    }
-                }
+                Console.WriteLine($"Error during authentication: {ex.Message}");
+                LogLoginAttempt(username, "Failure", ex.Message);
+                return false;
             }
         }
 
+        // Helper method to check group membership
+        private static bool IsUserInGroup(string username, string domain, string groupName)
+        {
+            try
+            {
+                string ldapServer = "ldap://ITSLIGO.LAN";
+                using (var ldapConnection = new LdapConnection(ldapServer))
+                {
+                    ldapConnection.AuthType = AuthType.Negotiate;
 
-        //MEthod to log attempts to sign in
+                    // Specify search filter
+                    string filter = $"(&(objectClass=user)(sAMAccountName={username})(memberOf=CN={groupName},CN=Users,DC=ITSLIGO,DC=LAN))";
+
+                    // Search in the directory
+                    var searchRequest = new SearchRequest("DC=ITSLIGO,DC=LAN", filter, SearchScope.Subtree);
+                    var searchResponse = (SearchResponse)ldapConnection.SendRequest(searchRequest);
+
+                    return searchResponse.Entries.Count > 0;
+                }
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        // Utility for masking password input
+        public static string ReadPassword()
+        {
+            StringBuilder password = new StringBuilder();
+            while (true)
+            {
+                ConsoleKeyInfo key = Console.ReadKey(intercept: true);
+                if (key.Key == ConsoleKey.Enter)
+                {
+                    Console.WriteLine();
+                    break;
+                }
+                password.Append(key.KeyChar);
+            }
+            return password.ToString();
+        }
+
+        // Event Logging Method
         public static void LogLoginAttempt(string username, string status, string details)
         {
             string logEntry = $"WHO: {username}, STATUS: {status}, DETAILS: {details}, WHEN: {DateTime.Now}";
-
             try
             {
                 if (!EventLog.SourceExists("SSD Banking Application"))
                 {
                     EventLog.CreateEventSource("SSD Banking Application", "Application");
                 }
-
                 EventLog.WriteEntry("SSD Banking Application", logEntry, EventLogEntryType.Information);
             }
             catch (Exception ex)
@@ -523,8 +501,17 @@ namespace Banking_Application
                 Console.WriteLine($"Error writing to event log: {ex.Message}");
             }
         }
+    }
 
-
-
+    public static class PrincipalExtensions
+    {
+        public static bool IsMemberOf(this Principal principal, PrincipalContext context, IdentityType identityType, string groupName)
+        {
+            using (var group = GroupPrincipal.FindByIdentity(context, identityType, groupName))
+            {
+                return group != null && group.Members.Contains(principal);
+            }
+        }
     }
 }
+            

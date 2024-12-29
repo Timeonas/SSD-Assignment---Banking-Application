@@ -1,4 +1,5 @@
 ﻿using Microsoft.Data.Sqlite;
+using Microsoft.Owin.Security.Infrastructure;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -9,17 +10,17 @@ using static Banking_Application.Program;
 
 namespace SSD_Assignment___Banking_Application
 {
-    public  class DatabaseStuff
+    public class DatabaseStuff
     {
         private static readonly string ConnectionString = "Data Source=Banking Database.db";
 
-        //Method to get a database connection
+        // Method to get a database connection
         public static SqliteConnection GetConnection()
         {
             return new SqliteConnection(ConnectionString);
         }
 
-        //Method to execute raw SQL commands
+        // Method to execute raw SQL commands
         public static void ExecuteSql(string sql)
         {
             using (var connection = GetConnection())
@@ -40,7 +41,7 @@ namespace SSD_Assignment___Banking_Application
             }
         }
 
-        //method to update and add databases
+        // Method to set up the BankAccounts table
         public static void SetupDatabase()
         {
             using (var connection = GetConnection())
@@ -49,70 +50,29 @@ namespace SSD_Assignment___Banking_Application
 
                 var command = connection.CreateCommand();
 
-                //Create the Users table if it doesn't exist
+                // Create the BankAccounts table if it doesn't exist
                 command.CommandText = @"
-                CREATE TABLE IF NOT EXISTS Users (
-                userId INTEGER PRIMARY KEY AUTOINCREMENT,
-                username TEXT UNIQUE NOT NULL,
-                password TEXT NOT NULL,
-                salt TEXT,
-                role TEXT NOT NULL
+            CREATE TABLE IF NOT EXISTS Bank_Accounts (
+                accountNo TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                address_line_1 TEXT NOT NULL,
+                address_line_2 TEXT,
+                address_line_3 TEXT,
+                town TEXT NOT NULL,
+                balance REAL NOT NULL,
+                accountType INTEGER NOT NULL,
+                overdraftAmount REAL,
+                interestRate REAL
             );
-            
-            INSERT OR IGNORE INTO Users (username, password, role)
-            VALUES 
-                ('Adam', 'password123', 'Admin'),
-                ('Tim', 'teller123', 'Teller');
         ";
                 command.ExecuteNonQuery();
 
-                Console.WriteLine("Users table ensured!");
+                Console.WriteLine("BankAccounts table ensured!");
             }
         }
 
-        //Existing data can be hashed
-        public static void HashExistingPasswords()
-        {
-            using (var connection = GetConnection())
-            {
-                connection.Open();
 
-                var selectCommand = connection.CreateCommand();
-                selectCommand.CommandText = "SELECT userId, password FROM Users WHERE salt IS NULL;";
-
-                using (var reader = selectCommand.ExecuteReader())
-                {
-                    while (reader.Read())
-                    {
-                        int userId = reader.GetInt32(0);
-                        string currentPassword = reader.GetString(1);
-
-                        Console.WriteLine($"Hashing password for userId: {userId}");
-
-                        //Generate a salt and hash the password
-                        string salt = SecurityHelper.GenerateSalt();
-                        string hashedPassword = SecurityHelper.HashWithSalt(currentPassword, salt);
-
-                        //Update the database
-                        var updateCommand = connection.CreateCommand();
-                        updateCommand.CommandText = @"
-                    UPDATE Users
-                    SET password = @password, salt = @salt
-                    WHERE userId = @userId;
-                ";
-                        updateCommand.Parameters.AddWithValue("@password", hashedPassword);
-
-                        updateCommand.Parameters.AddWithValue("@salt", salt);
-                        updateCommand.Parameters.AddWithValue("@userId", userId);
-
-                        int rowsAffected = updateCommand.ExecuteNonQuery();
-                        Console.WriteLine($"Updated userId: {userId}, Rows affected: {rowsAffected}");
-                    }
-                }
-            }
-
-            Console.WriteLine("Existing passwords hashed and salts added!");
-        }
+        
 
     }
 }
